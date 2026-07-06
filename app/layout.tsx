@@ -2,10 +2,39 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  ? `https://${process.env.NEXT_PUBLIC_SITE_URL.replace(/^https?:\/\//, '')}`
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000'
+
 export const metadata: Metadata = {
-  title: 'Friends Gathering Invitation',
-  description: 'A warm invitation to meet, eat, and stay in touch',
+  metadataBase: new URL(siteUrl),
+  title: 'Come Meet Me For Food',
+  description: 'I miss you. Come meet me for food, good company, and a warm catch-up with friends.',
   generator: 'v0.app',
+  openGraph: {
+    title: 'Come meet me for food and good company',
+    description: 'I have missed you. Let us share a meal, laugh together, and stay closer from now on.',
+    url: '/',
+    siteName: 'Friends Gathering Invitation',
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Cute invitation card that says Come meet me for food and good company',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Come meet me for food and good company',
+    description: 'I have missed you. Let us share a meal, laugh together, and stay closer from now on.',
+    images: ['/opengraph-image'],
+  },
   icons: {
     icon: [
       {
@@ -26,10 +55,10 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
+  colorScheme: 'light',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f9fbff' },
-    { media: '(prefers-color-scheme: dark)', color: '#121626' },
+    { media: '(prefers-color-scheme: light)', color: '#fff3f4' },
+    { media: '(prefers-color-scheme: dark)', color: '#fff3f4' },
   ],
 }
 
