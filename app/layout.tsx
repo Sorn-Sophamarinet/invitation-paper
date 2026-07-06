@@ -2,17 +2,20 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
+const productionUrl = 'https://invitation09.vercel.app'
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
   ? `https://${process.env.NEXT_PUBLIC_SITE_URL.replace(/^https?:\/\//, '')}`
-  : process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
+  : productionUrl
+const ogImageUrl = `${siteUrl}/opengraph-image`
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: 'Come Meet Me For Food',
   description: 'I miss you. Come meet me for food, good company, and a warm catch-up with friends.',
   generator: 'v0.app',
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     title: 'Come meet me for food and good company',
     description: 'I have missed you. Let us share a meal, laugh together, and stay closer from now on.',
@@ -20,10 +23,11 @@ export const metadata: Metadata = {
     siteName: 'Friends Gathering Invitation',
     images: [
       {
-        url: '/opengraph-image',
+        url: ogImageUrl,
         width: 1200,
         height: 630,
         alt: 'Cute invitation card that says Come meet me for food and good company',
+        type: 'image/png',
       },
     ],
     locale: 'en_US',
@@ -33,7 +37,11 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Come meet me for food and good company',
     description: 'I have missed you. Let us share a meal, laugh together, and stay closer from now on.',
-    images: ['/opengraph-image'],
+    images: [ogImageUrl],
+  },
+  other: {
+    'og:image:secure_url': ogImageUrl,
+    'og:image:type': 'image/png',
   },
   icons: {
     icon: [
