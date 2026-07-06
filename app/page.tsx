@@ -23,9 +23,13 @@ export default function Page() {
                 <Sparkles className="h-7 w-7" />
               </div>
 
-              <h1 className="text-4xl font-black leading-tight tracking-normal text-[#3a2725] md:text-6xl">
-                Come meet me for food and good company.
+             <h1 className="text-4xl font-black leading-tight tracking-normal text-[#3a2725] md:text-6xl">
+                Hello friends 🩵, 
               </h1>
+
+              <h5 className="text-4xl font-black leading-tight tracking-normal text-[#3a2725] md:text-6xl">
+                Come meet me for food and good company.
+              </h5>
 
               <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-[#7b5a55] md:text-xl md:leading-9">
                 I have missed you more than I knew how to say. Life has been moving so fast, and I miss those small,
@@ -64,7 +68,7 @@ export default function Page() {
 
               <div className="mx-auto mt-9 max-w-xl rounded-[1.5rem] border border-[#f0cdd1] bg-[#ffe8ec] px-6 py-5 shadow-[0_14px_34px_rgba(140,76,84,0.12)]">
                 <p className="text-lg font-black leading-8 text-[#6f3f45]">
-                  Please come as you are. I really want to see everyone again.
+                  Please come as you are. I really want to see everyone again 🥺
                 </p>
               </div>
             </div>
