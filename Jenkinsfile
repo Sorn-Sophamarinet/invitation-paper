@@ -366,6 +366,20 @@ KUBECONFIG
 
                         test "$HTTP_CODE" = "200"
 
+                        echo
+                        echo '========================================'
+                        echo ' INVITATION PAPER DEPLOYMENT SUMMARY'
+                        echo '========================================'
+                        echo "Build:             #${BUILD_NUMBER}"
+                        echo "Image:             ${CURRENT_IMAGE}"
+                        echo "Replicas:          ${AVAILABLE_REPLICAS}/${DESIRED_REPLICAS}"
+                        echo 'Readiness Probe:   PASS'
+                        echo 'Liveness Probe:    PASS'
+                        echo 'Security Gate:     PASS'
+                        echo "HTTP Check:        ${HTTP_CODE}"
+                        echo 'Deployment:        SUCCESS'
+                        echo '========================================'
+                        echo
                         echo "===== Verification Passed ====="
 
                         ${K8S_KUBECTL} \
