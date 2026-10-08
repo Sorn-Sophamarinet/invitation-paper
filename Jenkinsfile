@@ -32,12 +32,22 @@ pipeline {
                 sh '''
                     podman run --rm \
                       --user "$(id -u):$(id -g)" \
-                      -v "$PWD:/app:Z" \
-                      -w /app \
-                      -e HOME=/tmp  \
-                      -e npm_config_cache=/tmp/npm-cache  \
+                      -v "$PWD:/src:ro,Z" \
+                      -e HOME=/tmp \
+                      -e npm_config_cache=/tmp/npm-cache \
                       node:22-trixie \
-                      sh -c 'npm ci --include=optional && npm run lint'
+                      sh -c '
+                        mkdir -p /tmp/workspace &&
+                        tar -C /src \
+                          --exclude=node_modules \
+                          --exclude=.next \
+                          --exclude=.git \
+                          -cf - . |
+                        tar -C /tmp/workspace -xf - &&
+                        cd /tmp/workspace &&
+                        npm ci --include=optional &&
+                        npm run lint
+                      '
                 '''
             }
         }
