@@ -17,8 +17,6 @@ pipeline {
         K8S_NODE_IP = '10.20.20.133'
 
         EXPECTED_REPLICAS = '2'
-        DEPLOYMENT_ATTEMPTED = 'false'
-        FORCE_ROLLBACK_TEST = 'true'
     }
 
     stages {
@@ -149,9 +147,6 @@ pipeline {
 
         stage('Deploy K3s') {
             steps {
-                script {
-                    env.DEPLOYMENT_ATTEMPTED = 'true'
-                }
                 withCredentials([
                     string(
                         credentialsId: 'k3s-invitation-paper-token',
@@ -193,6 +188,7 @@ KUBECONFIG
                           manifests/deployment.yaml \
                           > "$WORKSPACE/deployment-rendered.yaml"
 
+                        touch "$WORKSPACE/.deployment-attempted"
                         ${K8S_KUBECTL} \
                           --kubeconfig="$KUBECONFIG_FILE" \
                           apply \
@@ -371,12 +367,6 @@ KUBECONFIG
 
                         test "$HTTP_CODE" = "200"
 
-                        if [ "$FORCE_ROLLBACK_TEST" = "true" ]; then
-                            echo "===== FORCED ROLLBACK TEST ====="
-                            echo "Intentionally failing Verify stage to test automatic rollback."
-                            exit 1
-                        fi
-
                         echo
                         echo '========================================'
                         echo ' INVITATION PAPER DEPLOYMENT SUMMARY'
@@ -407,7 +397,7 @@ KUBECONFIG
     post {
         failure {
             script {
-                if (env.DEPLOYMENT_ATTEMPTED == 'true') {
+                if (fileExists("${WORKSPACE}/.deployment-attempted")) {
                     echo '===== Automatic Rollback ====='
                     echo 'Pipeline failed after deployment started.'
                     echo 'Rolling back to the previous Kubernetes revision.'
@@ -464,6 +454,7 @@ KUBECONFIG
         always {
             sh '''
                 rm -f invitation-paper-image.tar || true
+                rm -f "$WORKSPACE/.deployment-attempted" || true
                 podman image rm ${IMAGE_NAME}:${BUILD_NUMBER} 2>/dev/null || true
             '''
         }
