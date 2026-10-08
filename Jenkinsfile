@@ -34,9 +34,8 @@ pipeline {
                       --user "$(id -u):$(id -g)" \
                       -v "$PWD:/app:Z" \
                       -w /app \
-                      -e HOME=/tmp 
-                      -e npm_config_cache=/tmp/npm-cache 
-
+                      -e HOME=/tmp  \
+                      -e npm_config_cache=/tmp/npm-cache  \
                       node:22-trixie \
                       sh -c 'npm ci --include=optional && npm run lint'
                 '''
