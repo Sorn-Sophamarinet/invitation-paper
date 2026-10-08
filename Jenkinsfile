@@ -367,6 +367,10 @@ KUBECONFIG
 
                         test "$HTTP_CODE" = "200"
 
+                        echo "===== CONTROLLED ROLLBACK TEST ====="
+                        echo "Intentionally failing Verify to test automatic rollback."
+                        exit 1
+
                         echo
                         echo '========================================'
                         echo ' INVITATION PAPER DEPLOYMENT SUMMARY'
