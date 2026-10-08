@@ -17,6 +17,12 @@ interface InvitationFormProps {
   onChange: (data: any) => void
 }
 
+const LabelIcon = ({ children }: { children: ReactNode }) => (
+  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    {children}
+  </span>
+)
+
 export default function InvitationForm({ data, onChange }: InvitationFormProps) {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -25,12 +31,6 @@ export default function InvitationForm({ data, onChange }: InvitationFormProps) 
 
   const fieldClass =
     'w-full rounded-lg border border-border bg-white px-4 py-3 text-sm text-foreground shadow-sm transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15'
-
-  const LabelIcon = ({ children }: { children: ReactNode }) => (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-      {children}
-    </span>
-  )
 
   return (
     <div className="rounded-xl border border-border bg-card/95 p-5 shadow-[0_20px_60px_rgba(22,31,51,0.08)] backdrop-blur md:p-6">
