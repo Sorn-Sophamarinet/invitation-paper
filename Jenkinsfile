@@ -68,19 +68,25 @@ pipeline {
                 sh '''
                     rm -f invitation-paper-image.tar
 
-                    podman save \
-                      -o invitation-paper-image.tar \
-                      ${IMAGE_NAME}:${BUILD_NUMBER}
+                    podman save                       -o invitation-paper-image.tar                       ${IMAGE_NAME}:${BUILD_NUMBER}
 
-                    podman run --rm \
-                      -v /var/lib/jenkins/trivy-cache:/root/.cache/trivy:Z \
-                      -v "$PWD/invitation-paper-image.tar:/scan/image.tar:ro,Z" \
-                      ${TRIVY_IMAGE} \
-                      --cache-dir /root/.cache/trivy \
-                      image \
-                      --input /scan/image.tar \
-                      --scanners vuln \
-                      --severity HIGH,CRITICAL
+                    echo "===== Trivy Security Scan ====="
+
+                    podman run --rm                       -v /var/lib/jenkins/trivy-cache:/root/.cache/trivy:Z                       -v "$PWD/invitation-paper-image.tar:/scan/image.tar:ro,Z"                       ${TRIVY_IMAGE}                       --cache-dir /root/.cache/trivy                       image                       --input /scan/image.tar                       --scanners vuln                       --severity HIGH,CRITICAL
+                '''
+            }
+        }
+
+        stage('Security Gate') {
+            steps {
+                sh '''
+                    echo "===== Trivy Security Gate ====="
+                    echo "Policy: CRITICAL vulnerabilities must be zero"
+
+                    podman run --rm                       -v /var/lib/jenkins/trivy-cache:/root/.cache/trivy:Z                       -v "$PWD/invitation-paper-image.tar:/scan/image.tar:ro,Z"                       ${TRIVY_IMAGE}                       --cache-dir /root/.cache/trivy                       image                       --input /scan/image.tar                       --scanners vuln                       --severity CRITICAL                       --exit-code 1
+
+                    echo "===== Security Gate Passed ====="
+                    echo "No CRITICAL vulnerabilities detected."
                 '''
             }
         }
