@@ -18,6 +18,7 @@ pipeline {
 
         EXPECTED_REPLICAS = '2'
         DEPLOYMENT_ATTEMPTED = 'false'
+        FORCE_ROLLBACK_TEST = 'true'
     }
 
     stages {
@@ -369,6 +370,12 @@ KUBECONFIG
                         echo "HTTP status: $HTTP_CODE"
 
                         test "$HTTP_CODE" = "200"
+
+                        if [ "$FORCE_ROLLBACK_TEST" = "true" ]; then
+                            echo "===== FORCED ROLLBACK TEST ====="
+                            echo "Intentionally failing Verify stage to test automatic rollback."
+                            exit 1
+                        fi
 
                         echo
                         echo '========================================'
