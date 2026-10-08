@@ -17,6 +17,7 @@ pipeline {
         K8S_NODE_IP = '10.20.20.133'
 
         EXPECTED_REPLICAS = '2'
+        DEPLOYMENT_ATTEMPTED = 'false'
     }
 
     stages {
@@ -147,6 +148,9 @@ pipeline {
 
         stage('Deploy K3s') {
             steps {
+                script {
+                    env.DEPLOYMENT_ATTEMPTED = 'true'
+                }
                 withCredentials([
                     string(
                         credentialsId: 'k3s-invitation-paper-token',
@@ -394,6 +398,62 @@ KUBECONFIG
     }
 
     post {
+        failure {
+            script {
+                if (env.DEPLOYMENT_ATTEMPTED == 'true') {
+                    echo '===== Automatic Rollback ====='
+                    echo 'Pipeline failed after deployment started.'
+                    echo 'Rolling back to the previous Kubernetes revision.'
+
+                    withCredentials([
+                        string(
+                            credentialsId: 'k3s-invitation-paper-token',
+                            variable: 'K8S_TOKEN'
+                        )
+                    ]) {
+                        sh '''
+                            set -eu
+
+                            KUBECONFIG_FILE="$(mktemp)"
+                            trap 'rm -f "$KUBECONFIG_FILE"' EXIT
+
+                            cat > "$KUBECONFIG_FILE" <<KUBECONFIG
+apiVersion: v1
+kind: Config
+clusters:
+  - name: invitation-paper-cluster
+    cluster:
+      server: ${K8S_SERVER}
+      certificate-authority: ${K8S_CA}
+users:
+  - name: jenkins-invitation-paper
+    user:
+      token: ${K8S_TOKEN}
+contexts:
+  - name: invitation-paper
+    context:
+      cluster: invitation-paper-cluster
+      user: jenkins-invitation-paper
+      namespace: ${K8S_NAMESPACE}
+current-context: invitation-paper
+KUBECONFIG
+
+                            chmod 600 "$KUBECONFIG_FILE"
+
+                            ${K8S_KUBECTL}                               --kubeconfig="$KUBECONFIG_FILE"                               -n "$K8S_NAMESPACE"                               rollout undo                               deployment/"$IMAGE_NAME"
+
+                            ${K8S_KUBECTL}                               --kubeconfig="$KUBECONFIG_FILE"                               -n "$K8S_NAMESPACE"                               rollout status                               deployment/"$IMAGE_NAME"                               --timeout=180s
+
+                            echo
+                            echo '===== Rollback Completed ====='
+
+                            ${K8S_KUBECTL}                               --kubeconfig="$KUBECONFIG_FILE"                               -n "$K8S_NAMESPACE"                               get deployment,service,pods                               -o wide
+                        '''
+                    }
+                }
+            }
+        }
+
         always {
             sh '''
                 rm -f invitation-paper-image.tar || true
