@@ -1,19 +1,46 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     environment {
         REGISTRY = '10.20.20.48:5000'
         IMAGE_NAME = 'invitation-paper'
         TRIVY_IMAGE = 'aquasec/trivy:0.75.0'
+
         K8S_SERVER = 'https://10.20.20.133:6443'
         K8S_CA = '/var/lib/jenkins/k3s-invitation-paper-ca.crt'
         K8S_NAMESPACE = 'invitation-paper'
         K8S_KUBECTL = '/usr/local/bin/kubectl'
+        K8S_NODE_IP = '10.20.20.133'
+
+        EXPECTED_REPLICAS = '2'
     }
 
     stages {
 
-        stage('Build & Test') {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh '''
+                    podman run --rm \
+                      --user "$(id -u):$(id -g)" \
+                      -v "$PWD:/app:Z" \
+                      -w /app \
+                      node:22-trixie \
+                      sh -c 'npm ci --include=optional && npm run lint'
+                '''
+            }
+        }
+
+        stage('Build') {
             steps {
                 sh '''
                     podman build \
@@ -126,22 +153,189 @@ KUBECONFIG
 
                         ${K8S_KUBECTL} \
                           --kubeconfig="$KUBECONFIG_FILE" \
-                          apply -f "$WORKSPACE/deployment-rendered.yaml"
+                          apply \
+                          -f "$WORKSPACE/deployment-rendered.yaml"
 
                         ${K8S_KUBECTL} \
                           --kubeconfig="$KUBECONFIG_FILE" \
-                          apply -f manifests/service.yaml
+                          apply \
+                          -f manifests/service.yaml
 
                         ${K8S_KUBECTL} \
                           --kubeconfig="$KUBECONFIG_FILE" \
                           -n "$K8S_NAMESPACE" \
-                          rollout status deployment/"$IMAGE_NAME" \
+                          rollout status \
+                          deployment/"$IMAGE_NAME" \
                           --timeout=180s
 
                         ${K8S_KUBECTL} \
                           --kubeconfig="$KUBECONFIG_FILE" \
                           -n "$K8S_NAMESPACE" \
-                          get deployment,service,pods -o wide
+                          get deployment,service,pods \
+                          -o wide
+                    '''
+                }
+            }
+        }
+
+        stage('Verify') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'k3s-invitation-paper-token',
+                        variable: 'K8S_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+
+                        KUBECONFIG_FILE="$(mktemp)"
+
+                        trap 'rm -f "$KUBECONFIG_FILE"' EXIT
+
+                        cat > "$KUBECONFIG_FILE" <<KUBECONFIG
+apiVersion: v1
+kind: Config
+clusters:
+  - name: invitation-paper-cluster
+    cluster:
+      server: ${K8S_SERVER}
+      certificate-authority: ${K8S_CA}
+users:
+  - name: jenkins-invitation-paper
+    user:
+      token: ${K8S_TOKEN}
+contexts:
+  - name: invitation-paper
+    context:
+      cluster: invitation-paper-cluster
+      user: jenkins-invitation-paper
+      namespace: ${K8S_NAMESPACE}
+current-context: invitation-paper
+KUBECONFIG
+
+                        chmod 600 "$KUBECONFIG_FILE"
+
+                        echo "===== Verify Deployment ====="
+
+                        DESIRED_REPLICAS="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.replicas}'
+                        )"
+
+                        UPDATED_REPLICAS="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.status.updatedReplicas}'
+                        )"
+
+                        AVAILABLE_REPLICAS="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.status.availableReplicas}'
+                        )"
+
+                        CURRENT_IMAGE="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.template.spec.containers[0].image}'
+                        )"
+
+                        READINESS_PATH="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.template.spec.containers[0].readinessProbe.httpGet.path}'
+                        )"
+
+                        READINESS_PORT="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.template.spec.containers[0].readinessProbe.httpGet.port}'
+                        )"
+
+                        LIVENESS_PATH="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.template.spec.containers[0].livenessProbe.httpGet.path}'
+                        )"
+
+                        LIVENESS_PORT="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.template.spec.containers[0].livenessProbe.httpGet.port}'
+                        )"
+
+                        NODE_PORT="$(
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get service "$IMAGE_NAME" \
+                              -o jsonpath='{.spec.ports[0].nodePort}'
+                        )"
+
+                        echo "Expected image:"
+                        echo "${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+
+                        echo "Actual image:"
+                        echo "$CURRENT_IMAGE"
+
+                        echo "Desired replicas:   $DESIRED_REPLICAS"
+                        echo "Updated replicas:   $UPDATED_REPLICAS"
+                        echo "Available replicas: $AVAILABLE_REPLICAS"
+
+                        echo "Readiness probe: path=$READINESS_PATH port=$READINESS_PORT"
+                        echo "Liveness probe:  path=$LIVENESS_PATH port=$LIVENESS_PORT"
+
+                        echo "NodePort: $NODE_PORT"
+
+                        test "$DESIRED_REPLICAS" = "$EXPECTED_REPLICAS"
+                        test "$UPDATED_REPLICAS" = "$EXPECTED_REPLICAS"
+                        test "$AVAILABLE_REPLICAS" = "$EXPECTED_REPLICAS"
+
+                        test "$CURRENT_IMAGE" = \
+                          "${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+
+                        test "$READINESS_PATH" = "/"
+                        test "$READINESS_PORT" = "3000"
+
+                        test "$LIVENESS_PATH" = "/"
+                        test "$LIVENESS_PORT" = "3000"
+
+                        HTTP_CODE="$(
+                            curl -sS \
+                              -o /dev/null \
+                              -w '%{http_code}' \
+                              "http://${K8S_NODE_IP}:${NODE_PORT}/"
+                        )"
+
+                        echo "HTTP status: $HTTP_CODE"
+
+                        test "$HTTP_CODE" = "200"
+
+                        echo "===== Verification Passed ====="
+
+                        ${K8S_KUBECTL} \
+                          --kubeconfig="$KUBECONFIG_FILE" \
+                          -n "$K8S_NAMESPACE" \
+                          get deployment,service,pods \
+                          -o wide
                     '''
                 }
             }
