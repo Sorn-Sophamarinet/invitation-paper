@@ -1,6 +1,14 @@
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(
+            name: 'DEPLOY_TO_K3S',
+            defaultValue: false,
+            description: 'Enable registry push and K3s deployment only for an explicitly approved deployment run.'
+        )
+    }
+
     options {
         skipDefaultCheckout(true)
     }
@@ -15,6 +23,7 @@ pipeline {
         K8S_NAMESPACE = 'invitation-paper'
         K8S_KUBECTL = '/usr/local/bin/kubectl'
         K8S_NODE_IP = '10.20.20.133'
+        K8S_NODE_PORT = '30081'
 
         EXPECTED_REPLICAS = '2'
     }
@@ -110,7 +119,47 @@ pipeline {
             }
         }
 
+        stage('Read-only Route Smoke Test') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "===== Read-only Route Smoke Test ====="
+                    echo "No registry push or deployment is performed by this stage."
+
+                    HTTP_CODE_ROOT="$(
+                        curl -sS \
+                          --connect-timeout 5 \
+                          --max-time 15 \
+                          -o /dev/null \
+                          -w '%{http_code}' \
+                          "http://${K8S_NODE_IP}:${K8S_NODE_PORT}/"
+                    )"
+
+                    HTTP_CODE_INVITE="$(
+                        curl -sS \
+                          --connect-timeout 5 \
+                          --max-time 15 \
+                          -o /dev/null \
+                          -w '%{http_code}' \
+                          "http://${K8S_NODE_IP}:${K8S_NODE_PORT}/invite"
+                    )"
+
+                    echo "HTTP /:       $HTTP_CODE_ROOT"
+                    echo "HTTP /invite: $HTTP_CODE_INVITE"
+
+                    test "$HTTP_CODE_ROOT" = "200"
+                    test "$HTTP_CODE_INVITE" = "200"
+
+                    echo "PASS: Both routes returned HTTP 200."
+                '''
+            }
+        }
+
         stage('Push Registry') {
+            when {
+                expression { params.DEPLOY_TO_K3S }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -146,6 +195,9 @@ pipeline {
         }
 
         stage('Deploy K3s') {
+            when {
+                expression { params.DEPLOY_TO_K3S }
+            }
             steps {
                 withCredentials([
                     string(
@@ -230,6 +282,9 @@ KUBECONFIG
         }
 
         stage('Verify') {
+            when {
+                expression { params.DEPLOY_TO_K3S }
+            }
             steps {
                 withCredentials([
                     string(
