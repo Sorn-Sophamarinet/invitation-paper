@@ -193,7 +193,7 @@ KUBECONFIG
                             --kubeconfig="$KUBECONFIG_FILE" \
                             -n "$K8S_NAMESPACE" \
                             get deployment "$IMAGE_NAME" \
-                            -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}'
+                            -o go-template='{{index .metadata.annotations "deployment.kubernetes.io/revision"}}'
                         )"
 
                         test -n "$PREVIOUS_REVISION"
@@ -458,7 +458,7 @@ KUBECONFIG
                                 --kubeconfig="$KUBECONFIG_FILE" \
                                 -n "$K8S_NAMESPACE" \
                                 get deployment "$IMAGE_NAME" \
-                                -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}'
+                                -o go-template='{{index .metadata.annotations "deployment.kubernetes.io/revision"}}'
                             )"
 
                             echo "Previous revision: $PREVIOUS_REVISION"
