@@ -367,9 +367,6 @@ KUBECONFIG
 
                         test "$HTTP_CODE" = "200"
 
-                        echo "===== CONTROLLED ROLLBACK TEST ====="
-                        echo "Intentionally failing Verify to test automatic rollback."
-                        exit 1
 
                         echo
                         echo '========================================'
@@ -458,9 +455,14 @@ KUBECONFIG
         always {
             sh '''
                 rm -f invitation-paper-image.tar || true
-                rm -f "$WORKSPACE/.deployment-attempted" || true
                 podman image rm ${IMAGE_NAME}:${BUILD_NUMBER} 2>/dev/null || true
             '''
         }
+        cleanup {
+            sh '''
+                rm -f "$WORKSPACE/.deployment-attempted" || true
+            '''
+        }
+
     }
 }
