@@ -188,7 +188,20 @@ KUBECONFIG
                           manifests/deployment.yaml \
                           > "$WORKSPACE/deployment-rendered.yaml"
 
+                        PREVIOUS_REVISION="$(
+                          ${K8S_KUBECTL} \
+                            --kubeconfig="$KUBECONFIG_FILE" \
+                            -n "$K8S_NAMESPACE" \
+                            get deployment "$IMAGE_NAME" \
+                            -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}'
+                        )"
+
+                        test -n "$PREVIOUS_REVISION"
+                        printf '%s\n' "$PREVIOUS_REVISION" \
+                          > "$WORKSPACE/.deployment-previous-revision"
+
                         touch "$WORKSPACE/.deployment-attempted"
+
                         ${K8S_KUBECTL} \
                           --kubeconfig="$KUBECONFIG_FILE" \
                           apply \
@@ -438,14 +451,51 @@ KUBECONFIG
 
                             chmod 600 "$KUBECONFIG_FILE"
 
-                            ${K8S_KUBECTL}                               --kubeconfig="$KUBECONFIG_FILE"                               -n "$K8S_NAMESPACE"                               rollout undo                               deployment/"$IMAGE_NAME"
+                            PREVIOUS_REVISION="$(cat "$WORKSPACE/.deployment-previous-revision" 2>/dev/null || true)"
 
-                            ${K8S_KUBECTL}                               --kubeconfig="$KUBECONFIG_FILE"                               -n "$K8S_NAMESPACE"                               rollout status                               deployment/"$IMAGE_NAME"                               --timeout=180s
+                            CURRENT_REVISION="$(
+                              ${K8S_KUBECTL} \
+                                --kubeconfig="$KUBECONFIG_FILE" \
+                                -n "$K8S_NAMESPACE" \
+                                get deployment "$IMAGE_NAME" \
+                                -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}'
+                            )"
 
-                            echo
-                            echo '===== Rollback Completed ====='
+                            echo "Previous revision: $PREVIOUS_REVISION"
+                            echo "Current revision:  $CURRENT_REVISION"
 
-                            ${K8S_KUBECTL}                               --kubeconfig="$KUBECONFIG_FILE"                               -n "$K8S_NAMESPACE"                               get deployment,service,pods                               -o wide
+                            if [ -z "$PREVIOUS_REVISION" ]; then
+                                echo 'ERROR: Previous revision is missing; automatic rollback cannot be safely targeted.'
+                                exit 1
+                            elif [ -z "$CURRENT_REVISION" ]; then
+                                echo 'ERROR: Could not determine the current deployment revision.'
+                                exit 1
+                            elif [ "$CURRENT_REVISION" -gt "$PREVIOUS_REVISION" ]; then
+                                ${K8S_KUBECTL} \
+                                  --kubeconfig="$KUBECONFIG_FILE" \
+                                  -n "$K8S_NAMESPACE" \
+                                  rollout undo \
+                                  deployment/"$IMAGE_NAME" \
+                                  --to-revision="$PREVIOUS_REVISION"
+
+                                ${K8S_KUBECTL} \
+                                  --kubeconfig="$KUBECONFIG_FILE" \
+                                  -n "$K8S_NAMESPACE" \
+                                  rollout status \
+                                  deployment/"$IMAGE_NAME" \
+                                  --timeout=180s
+
+                                echo
+                                echo '===== Rollback Completed ====='
+                            else
+                                echo 'No newer deployment revision was created; rollback is not needed.'
+                            fi
+
+                            ${K8S_KUBECTL} \
+                              --kubeconfig="$KUBECONFIG_FILE" \
+                              -n "$K8S_NAMESPACE" \
+                              get deployment,service,pods \
+                              -o wide
                         '''
                     }
                 }
@@ -460,7 +510,8 @@ KUBECONFIG
         }
         cleanup {
             sh '''
-                rm -f "$WORKSPACE/.deployment-attempted" || true
+                rm -f "$WORKSPACE/.deployment-attempted" \
+                      "$WORKSPACE/.deployment-previous-revision" || true
             '''
         }
 
