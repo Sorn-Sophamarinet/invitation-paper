@@ -20,7 +20,7 @@ RUN npm run lint
 RUN npm run build
 
 
-FROM node:22-trixie-slim AS runner
+FROM gcr.io/distroless/nodejs22-debian13:nonroot AS runner
 
 WORKDIR /app
 
@@ -29,23 +29,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
-# The production server does not need npm, npx, Corepack, or Yarn.
-RUN rm -rf \
-    /usr/local/lib/node_modules/npm \
-    /usr/local/lib/node_modules/corepack \
-    /opt/yarn-v1.22.22 \
-    /usr/local/bin/npm \
-    /usr/local/bin/npx \
-    /usr/local/bin/corepack \
-    /usr/local/bin/yarn \
-    /usr/local/bin/yarnpkg
-
-USER node
+COPY --chown=65532:65532 --from=builder /app/public ./public
+COPY --chown=65532:65532 --from=builder /app/.next/standalone ./
+COPY --chown=65532:65532 --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["server.js"]
