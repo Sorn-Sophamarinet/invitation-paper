@@ -369,16 +369,29 @@ KUBECONFIG
                         test "$LIVENESS_PATH" = "/"
                         test "$LIVENESS_PORT" = "3000"
 
-                        HTTP_CODE="$(
+                        HTTP_CODE_ROOT="$(
                             curl -sS \
+                              --connect-timeout 5 \
+                              --max-time 15 \
                               -o /dev/null \
                               -w '%{http_code}' \
                               "http://${K8S_NODE_IP}:${NODE_PORT}/"
                         )"
 
-                        echo "HTTP status: $HTTP_CODE"
+                        HTTP_CODE_INVITE="$(
+                            curl -sS \
+                              --connect-timeout 5 \
+                              --max-time 15 \
+                              -o /dev/null \
+                              -w '%{http_code}' \
+                              "http://${K8S_NODE_IP}:${NODE_PORT}/invite"
+                        )"
 
-                        test "$HTTP_CODE" = "200"
+                        echo "HTTP / status: $HTTP_CODE_ROOT"
+                        echo "HTTP /invite status: $HTTP_CODE_INVITE"
+
+                        test "$HTTP_CODE_ROOT" = "200"
+                        test "$HTTP_CODE_INVITE" = "200"
 
 
                         echo
@@ -391,7 +404,8 @@ KUBECONFIG
                         echo 'Readiness Probe:   PASS'
                         echo 'Liveness Probe:    PASS'
                         echo 'Security Gate:     PASS'
-                        echo "HTTP Check:        ${HTTP_CODE}"
+                        echo "HTTP Check (/):        ${HTTP_CODE_ROOT}"
+                        echo "HTTP Check (/invite):  ${HTTP_CODE_INVITE}"
                         echo 'Deployment:        SUCCESS'
                         echo '========================================'
                         echo
